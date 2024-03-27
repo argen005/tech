@@ -1,8 +1,8 @@
 from django.contrib import admin
-from users.models import User
+from users.models import UserProfile
 
 
-@admin.register(User)
+@admin.register(UserProfile)
 class UserAdmin(admin.ModelAdmin):
     list_display = ('id', 'email', 'is_active')
     list_display_links = list_display

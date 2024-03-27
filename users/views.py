@@ -1,41 +1,35 @@
-from django.shortcuts import render
-from rest_framework import status
-from rest_framework.generics import CreateAPIView, GenericAPIView
+from django.contrib.auth import get_user_model
+from rest_framework import status, generics
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from users.models import User
-from users.serializers import RegisterSerializer, LoginSerializer
+from users.serializers import UserRegisterSerializer, UserLoginSerializer
 
+User = get_user_model()
 
-class RegisterAPIView(CreateAPIView):
-    serializer_class = RegisterSerializer
+class UserRegisterAPIView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserRegisterSerializer
     permission_classes = [AllowAny]
 
-    def create(self, request, *args, **kwargs):
-        email = request.data.get('email')
-        password = request.data.get('password')
-        first_name = request.data.get('first_name')
-        last_name = request.data.get('last_name')
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        try:
-            user = User.objects.get(email=email)
-        except:
-            user = User.objects.create(email=email)
-        user.set_password(password)
-        user.first_name = first_name
-        user.last_name = last_name
-        user.save()
-        return Response(data=serializer.initial_data, status=status.HTTP_201_CREATED)
-
-
-class LoginAPIView(GenericAPIView):
-    serializer_class = LoginSerializer
+class UserLoginAPIView(generics.GenericAPIView):
+    serializer_class = UserLoginSerializer
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = User.objects.get(email=serializer.initial_data.get('email'))
-        return Response(data={'email': user.email, 'token': user.tokens()}, status=status.HTTP_200_OK)
+        user = serializer.validated_data
+        return Response({'token': user.tokens()['access']}, status=status.HTTP_200_OK)
+
+
+class VerifyEmail(APIView):
+    def get(self, request, email, confirmation_code):
+        user = User.objects.filter(email=email, confirmation_code=confirmation_code).first()
+        if not user:
+            return Response('Код верификации неверен', status=400)
+        user.is_active = True
+        user.confirmation_code = ''
+        user.save()
+        return Response('Верификация прошла успешно', status=200)

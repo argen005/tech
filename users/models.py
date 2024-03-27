@@ -1,48 +1,59 @@
+from random import randint
 from django.db import models
 from django.contrib.auth.base_user import BaseUserManager, AbstractBaseUser
-from django.contrib.auth.models import PermissionsMixin
-
+from rest_framework_simplejwt.tokens import RefreshToken
 
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None):
-        if email is None:
-            raise TypeError('Users should be a Phone')
+        if not email:
+            raise ValueError('Email is required')
+
+        email = self.normalize_email(email)
         user = self.model(email=email)
         user.set_password(password)
-        user.save()
+        user.save(using=self._db)
         return user
 
     def create_superuser(self, email, password):
-        if password is None:
-            raise TypeError('Password should be not None')
-        if email is None:
-            raise TypeError('Email should not be None')
         user = self.create_user(email, password)
         user.is_superuser = True
         user.is_staff = True
-        user.save()
+        user.save(using=self._db)
         return user
 
 
-class User(AbstractBaseUser):
-    email = models.EmailField(verbose_name='Электронная почта', unique=True)
-    phone = models.CharField(verbose_name='Номер телефона', max_length=255, unique=True, null=True, blank=True)
+class UserProfile(AbstractBaseUser):
+    email = models.EmailField(verbose_name='Email', unique=True)
+    phone = models.CharField(verbose_name='Phone', max_length=255, unique=True, null=True, blank=True)
     is_verified = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
-    confirmation_code = models.CharField(verbose_name='Код подтверждения', max_length=6, null=True, blank=True)
+    confirmation_code = models.CharField(verbose_name='Confirmation Code', max_length=6, null=True, blank=True)
 
-    USERNAME_FIELD = 'email'
     objects = UserManager()
 
-    class Meta:
-        verbose_name = 'Пользователь'
-        verbose_name_plural = 'Список пользователей'
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = []
+
+    class Meta :
+        verbose_name = "Пользователь"
+        verbose_name_plural = "Пользователи"
 
     def __str__(self):
-        return str(self.email)
+        return self.email
+
+    def tokens(self):
+        refresh = RefreshToken.for_user(self)
+        return {'refresh': str(refresh), 'access': str(refresh.access_token)}
 
 
-    def set_password(self, raw_password):
-        return super().set_password(raw_password)
+    def confirmation_code_generate(self):
+        self.confirmation_code = ''.join([str(randint(0, 9)) for _ in range(6)])
+        self.save()
+
+    def has_perm(self, perm, obj=None):
+        return True
+
+    def has_module_perms(self, app_label):
+        return True
